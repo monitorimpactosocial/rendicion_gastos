@@ -5,10 +5,29 @@ function extractTextWithDriveOcr_(blob, originalName) {
     parents: [{ id: tempFolder.getId() }]
   };
 
-  const inserted = Drive.Files.insert(resource, blob, {
-    ocr: true,
-    ocrLanguage: 'es'
-  });
+  let inserted;
+  let retries = 0;
+  const maxRetries = 3;
+  while (retries < maxRetries) {
+    try {
+      inserted = Drive.Files.insert(resource, blob, {
+        ocr: true,
+        ocrLanguage: 'es'
+      });
+      break;
+    } catch (e) {
+      const errorMsg = String(e);
+      if (errorMsg.indexOf('rate limit') > -1 || errorMsg.indexOf('Rate Limit') > -1 || errorMsg.indexOf('429') > -1) {
+        retries++;
+        if (retries >= maxRetries) {
+          throw new Error('Límite de OCR excedido temporalmente. Por favor, intente de nuevo en unos minutos.');
+        }
+        Utilities.sleep(Math.pow(2, retries) * 1000 + Math.round(Math.random() * 1000));
+      } else {
+        throw e;
+      }
+    }
+  }
 
   const doc = DocumentApp.openById(inserted.id);
   const text = doc.getBody().getText();
