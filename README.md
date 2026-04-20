@@ -10,6 +10,10 @@ Proyecto Apps Script vinculado:
 
 - `https://script.google.com/d/1P0MSIOFZycmbX7T75qLMetUglXEyJ9fsgDCBjHznM5JXvGNOl9pFsIBp/edit`
 
+Acceso web embebido previsto para usuarios:
+
+- `https://monitorimpactosocial.github.io/rendicion_gastos/`
+
 ## Lo que hace hoy
 
 - inicio de sesion con usuarios basicos,
@@ -35,7 +39,8 @@ El repositorio ya quedo preparado en la raiz con:
 
 - `.clasp.json` apuntando al proyecto Apps Script vinculado,
 - `.claspignore` para subir solo `gas/`,
-- `package.json` con scripts de `clasp`.
+- `package.json` con scripts de `clasp`,
+- `index.html` como wrapper estatico para GitHub Pages.
 
 Comandos utiles:
 
@@ -43,6 +48,12 @@ Comandos utiles:
 - `npx clasp push -f`
 - `npx clasp version "descripcion"`
 - `npx clasp deploy --versionNumber N --description "descripcion"`
+
+Para GitHub Pages, la opcion mas simple en este repo es:
+
+- `Settings > Pages > Deploy from a branch`
+- rama `main`
+- carpeta `/(root)`
 
 ## Credenciales iniciales
 
@@ -84,3 +95,4 @@ La inicializacion deja estas hojas:
 - Los temporales de OCR se crean en `ocr_tmp` y luego se envian a papelera.
 - La base de rendiciones soporta creacion y edicion desde la interfaz.
 - La extraccion automatica ayuda, pero no reemplaza la verificacion humana.
+- La pagina de GitHub Pages embebe la web app de Apps Script mediante `iframe`.

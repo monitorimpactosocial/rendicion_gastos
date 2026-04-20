@@ -60,3 +60,4 @@ Ya existe una deployment creada con version `1`.
 - El archivo original se guarda en `uploads_facturas`.
 - Los documentos temporales de OCR se envian a `ocr_tmp` y luego se marcan como papelera.
 - La interfaz permite filtros por estado, busqueda y edicion posterior.
+- El acceso para usuarios puede publicarse tambien mediante GitHub Pages usando el `index.html` de la raiz del repo.

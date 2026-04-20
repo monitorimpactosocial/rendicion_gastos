@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rendicion de Gastos</title>
+    <meta
+      name="description"
+      content="Acceso directo a la rendicion de gastos de viajes de Paracel."
+    >
+    <style>
+      :root {
+        --bg: #eef3ec;
+        --surface: #ffffff;
+        --surface-soft: #f5f8f3;
+        --text: #1f2a23;
+        --muted: #5b6a60;
+        --line: #ccd7ce;
+        --accent: #216b46;
+        --accent-dark: #184d32;
+        --accent-soft: #dceee3;
+        --warning: #b1532b;
+        --warning-soft: #f8e7df;
+        --shadow: 0 12px 26px rgba(24, 43, 32, 0.09);
+        --radius: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      a,
+      button {
+        font: inherit;
+      }
+
+      .shell {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .topbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 16px;
+        align-items: center;
+        padding: 14px 18px;
+        background: rgba(255, 255, 255, 0.9);
+        border-bottom: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(10px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
+      }
+
+      .brand-image {
+        width: 64px;
+        height: 64px;
+        border-radius: var(--radius);
+        object-fit: cover;
+        border: 1px solid var(--line);
+        background: var(--surface-soft);
+        flex: 0 0 auto;
+      }
+
+      .brand-copy {
+        min-width: 0;
+      }
+
+      .eyebrow {
+        margin: 0 0 4px;
+        font-size: 12px;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.1;
+      }
+
+      .topbar p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: flex-end;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 10px 14px;
+        border-radius: var(--radius);
+        text-decoration: none;
+        border: 1px solid transparent;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .button.primary {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .button.primary:hover {
+        background: var(--accent-dark);
+      }
+
+      .button.secondary {
+        background: var(--surface-soft);
+        color: var(--accent-dark);
+        border-color: var(--line);
+      }
+
+      .button.secondary:hover {
+        background: var(--accent-soft);
+      }
+
+      .workspace {
+        position: relative;
+        min-height: 0;
+      }
+
+      .frame {
+        width: 100%;
+        height: calc(100vh - 95px);
+        border: 0;
+        display: block;
+        background: #fff;
+      }
+
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          linear-gradient(rgba(238, 243, 236, 0.88), rgba(238, 243, 236, 0.88)),
+          url("docs/ejemplo_factura.jpg") center/cover no-repeat;
+        transition: opacity 0.25s ease, visibility 0.25s ease;
+      }
+
+      .overlay.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      .status-card {
+        width: min(520px, 100%);
+        padding: 22px;
+        border-radius: var(--radius);
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+      }
+
+      .status-card h2 {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.15;
+      }
+
+      .status-card p {
+        margin: 10px 0 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .status-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .status-note {
+        margin-top: 16px;
+        padding: 12px 14px;
+        border-radius: var(--radius);
+        background: var(--warning-soft);
+        border: 1px solid #efd0c2;
+        color: #7e4127;
+        line-height: 1.45;
+      }
+
+      .status-note.hidden {
+        display: none;
+      }
+
+      @media (max-width: 840px) {
+        .topbar {
+          grid-template-columns: 1fr;
+        }
+
+        .actions {
+          justify-content: stretch;
+        }
+
+        .actions .button {
+          width: 100%;
+        }
+
+        .brand-image {
+          width: 56px;
+          height: 56px;
+        }
+
+        .frame {
+          height: calc(100vh - 150px);
+        }
+      }
+
+      @media (max-width: 560px) {
+        .topbar {
+          padding: 14px;
+        }
+
+        .brand {
+          align-items: flex-start;
+        }
+
+        h1 {
+          font-size: 20px;
+        }
+
+        .status-card {
+          padding: 18px;
+        }
+
+        .status-card h2 {
+          font-size: 21px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <img
+            class="brand-image"
+            src="docs/ejemplo_factura.jpg"
+            alt="Comprobante"
+          >
+          <div class="brand-copy">
+            <p class="eyebrow">Paracel</p>
+            <h1>Rendicion de Gastos</h1>
+            <p>Cargar, revisar y registrar comprobantes de viaje desde un acceso mas directo.</p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="button secondary" id="reloadButton" type="button">Recargar</button>
+          <a
+            class="button primary"
+            id="openDirectButton"
+            href="https://script.google.com/macros/s/AKfycbyRJ9h0Qirm5D7g3yP-yt4AaaE8xoiwckHjA3tAsGYRJWJdn-eqqzAIDnNzD_f6uczU/exec"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Abrir directo</a>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <iframe
+          id="appFrame"
+          class="frame"
+          title="Rendicion de gastos"
+          src="https://script.google.com/macros/s/AKfycbyRJ9h0Qirm5D7g3yP-yt4AaaE8xoiwckHjA3tAsGYRJWJdn-eqqzAIDnNzD_f6uczU/exec"
+          allow="clipboard-read; clipboard-write"
+        ></iframe>
+
+        <div class="overlay" id="loadingOverlay">
+          <div class="status-card">
+            <p class="eyebrow">Acceso</p>
+            <h2>Entrando a la rendicion.</h2>
+            <p>Si tarda un poco, espere unos segundos o abra la aplicacion en una pestaña aparte.</p>
+
+            <div class="status-actions">
+              <button class="button secondary" id="retryButton" type="button">Intentar otra vez</button>
+              <a
+                class="button primary"
+                href="https://script.google.com/macros/s/AKfycbyRJ9h0Qirm5D7g3yP-yt4AaaE8xoiwckHjA3tAsGYRJWJdn-eqqzAIDnNzD_f6uczU/exec"
+                target="_blank"
+                rel="noopener noreferrer"
+              >Seguir en otra pestaña</a>
+            </div>
+
+            <div class="status-note hidden" id="slowNote">
+              La carga sigue en camino. Si el navegador bloquea algo, abrir directo resuelve el acceso al instante.
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const appUrl = 'https://script.google.com/macros/s/AKfycbyRJ9h0Qirm5D7g3yP-yt4AaaE8xoiwckHjA3tAsGYRJWJdn-eqqzAIDnNzD_f6uczU/exec';
+      const frame = document.getElementById('appFrame');
+      const overlay = document.getElementById('loadingOverlay');
+      const slowNote = document.getElementById('slowNote');
+      const reloadButton = document.getElementById('reloadButton');
+      const retryButton = document.getElementById('retryButton');
+
+      let slowTimer = null;
+
+      function startLoadingCycle() {
+        overlay.classList.remove('hidden');
+        slowNote.classList.add('hidden');
+        window.clearTimeout(slowTimer);
+        slowTimer = window.setTimeout(() => {
+          slowNote.classList.remove('hidden');
+        }, 7000);
+      }
+
+      function reloadFrame() {
+        startLoadingCycle();
+        frame.src = appUrl + (appUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+      }
+
+      frame.addEventListener('load', () => {
+        window.clearTimeout(slowTimer);
+        overlay.classList.add('hidden');
+      });
+
+      reloadButton.addEventListener('click', reloadFrame);
+      retryButton.addEventListener('click', reloadFrame);
+
+      startLoadingCycle();
+    </script>
+  </body>
+</html>
