@@ -21,7 +21,7 @@ function apiLogin(username, password) {
   return {
     ok: true,
     token: session.token,
-    expiresAt: session.expiresAt,
+    expiresAt: session.expiresAt.getTime(),
     user: {
       userId: user.userId,
       username: user.username,

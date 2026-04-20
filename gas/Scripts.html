@@ -599,6 +599,10 @@
         document.getElementById('loginPassword').value
       ]);
 
+      if (!response || !response.token) {
+        throw new Error('No se pudo iniciar sesion. Intente nuevamente.');
+      }
+
       state.token = response.token;
       localStorage.setItem('rg_token', response.token);
       setWorkspaceVisible(true);
