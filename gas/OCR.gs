@@ -2,7 +2,6 @@ function extractTextWithDriveOcr_(blob, originalName) {
   const tempFolder = getOcrTempFolder_();
   const resource = {
     title: 'OCR_' + sanitizeFileName_(originalName || 'archivo') + '_' + Date.now(),
-    mimeType: blob.getContentType() || 'image/jpeg',
     parents: [{ id: tempFolder.getId() }]
   };
 
