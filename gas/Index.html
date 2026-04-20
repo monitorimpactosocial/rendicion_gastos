@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <title><?= appName ?></title>
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <div class="shell" id="appShell">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <div class="brand-mark">RG</div>
+          <div>
+            <p class="brand-overline">Paracel</p>
+            <h1><?= appName ?></h1>
+          </div>
+        </div>
+
+        <nav class="menu">
+          <button class="menu-item active" data-view="dashboard">Resumen</button>
+          <button class="menu-item" data-view="new-expense">Nueva rendicion</button>
+          <button class="menu-item" data-view="expenses">Rendiciones</button>
+          <button class="menu-item admin-only" data-view="users">Usuarios</button>
+          <button class="menu-item" data-view="help">Metodologia</button>
+        </nav>
+
+        <div class="sidebar-notes">
+          <div class="sidebar-note">
+            <span class="note-label">OCR</span>
+            <strong>Lectura asistida</strong>
+            <p>La carga reconoce campos clave y deja el resto listo para revision manual.</p>
+          </div>
+          <div class="sidebar-note">
+            <span class="note-label">Control</span>
+            <strong>Seguimiento simple</strong>
+            <p>Estados, filtros y trazabilidad en la misma pantalla.</p>
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="session-user" id="sessionUserBox"></div>
+          <button class="secondary block" id="btnLogout">Cerrar sesion</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section id="loginView" class="login-screen visible">
+          <div class="login-copy">
+            <p class="eyebrow">Rendicion de viajes</p>
+            <h2>Registrar facturas sin pelearse con la planilla.</h2>
+            <p class="lead">Suba una foto o PDF, revise la lectura del comprobante y guarde la rendicion en la base estructurada.</p>
+            <ul class="checklist">
+              <li>Carga de imagen o PDF</li>
+              <li>Extraccion de datos con OCR</li>
+              <li>Revision manual antes de aprobar</li>
+              <li>Usuarios y trazabilidad basica</li>
+            </ul>
+          </div>
+
+          <div class="panel login-panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow muted">Acceso</p>
+                <h3>Iniciar sesion</h3>
+              </div>
+            </div>
+
+            <div class="form-grid single-col">
+              <label>
+                <span>Usuario</span>
+                <input id="loginUsername" type="text" autocomplete="username" placeholder="admin">
+              </label>
+              <label>
+                <span>Contrasena</span>
+                <input id="loginPassword" type="password" autocomplete="current-password" placeholder="123">
+              </label>
+            </div>
+
+            <div class="inline-note">
+              Credenciales iniciales de prueba: <strong>admin / 123</strong>
+            </div>
+
+            <div class="actions">
+              <button id="btnLogin" class="primary">Ingresar</button>
+            </div>
+
+            <div id="loginError" class="message error hidden"></div>
+          </div>
+        </section>
+
+        <section id="workspace" class="workspace hidden">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow muted" id="viewEyebrow">Operacion</p>
+              <h2 id="viewTitle">Resumen</h2>
+              <p id="viewSubtitle" class="topbar-copy">Panel consolidado de rendiciones y estado operativo.</p>
+            </div>
+
+            <div class="topbar-actions">
+              <button class="secondary" id="btnStartNewExpense">Nueva rendicion</button>
+              <button class="secondary" id="btnRefresh">Actualizar</button>
+            </div>
+          </header>
+
+          <section id="dashboardView" class="view visible">
+            <div class="stats-grid">
+              <article class="stat-panel">
+                <span>Total rendiciones</span>
+                <strong id="statExpenseCount">0</strong>
+              </article>
+              <article class="stat-panel">
+                <span>Monto total</span>
+                <strong id="statTotalAmount">Gs. 0</strong>
+              </article>
+              <article class="stat-panel">
+                <span>Pendientes</span>
+                <strong id="statPendingCount">0</strong>
+              </article>
+              <article class="stat-panel">
+                <span>Aprobadas</span>
+                <strong id="statApprovedCount">0</strong>
+              </article>
+            </div>
+
+            <div class="split-grid">
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow muted">Ultimos movimientos</p>
+                    <h3>Rendiciones recientes</h3>
+                  </div>
+                  <button class="ghost" id="btnOpenExpenses">Ver base completa</button>
+                </div>
+                <div id="latestExpenses" class="table-wrapper"></div>
+              </section>
+
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow muted">Flujo recomendado</p>
+                    <h3>Operacion diaria</h3>
+                  </div>
+                </div>
+
+                <div class="stack-list">
+                  <article class="flow-item">
+                    <span class="flow-index">1</span>
+                    <div>
+                      <strong>Cargar el comprobante</strong>
+                      <p>Fotografia de frente, fondo limpio y todos los bordes visibles.</p>
+                    </div>
+                  </article>
+                  <article class="flow-item">
+                    <span class="flow-index">2</span>
+                    <div>
+                      <strong>Revisar la lectura</strong>
+                      <p>Fecha, RUC, numero de factura, total e IVA merecen una segunda mirada.</p>
+                    </div>
+                  </article>
+                  <article class="flow-item">
+                    <span class="flow-index">3</span>
+                    <div>
+                      <strong>Guardar y clasificar</strong>
+                      <p>El estado queda disponible para seguimiento y auditoria interna.</p>
+                    </div>
+                  </article>
+                </div>
+
+                <div class="callout">
+                  <strong>Consejo rapido</strong>
+                  <p>Si el OCR trae texto ruidoso, corrija los datos clave antes de guardar. La base estructurada vale mas que una extraccion apurada.</p>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section id="newExpenseView" class="view hidden">
+            <div id="editingBanner" class="editing-banner hidden">
+              <div>
+                <span class="eyebrow muted">Modo edicion</span>
+                <strong id="editingExpenseLabel">Rendicion seleccionada</strong>
+                <p id="editingExpenseMeta">Puede actualizar campos, estado y notas.</p>
+              </div>
+              <button class="secondary" id="btnCreateFreshExpense">Limpiar formulario</button>
+            </div>
+
+            <div class="split-grid">
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow muted">Paso 1</p>
+                    <h3>Viaje y comprobante</h3>
+                  </div>
+                </div>
+
+                <div class="form-grid three-col">
+                  <label>
+                    <span>Colaborador</span>
+                    <input id="employeeName" type="text" placeholder="Nombre y apellido">
+                  </label>
+                  <label>
+                    <span>Motivo del viaje</span>
+                    <input id="tripReason" type="text" placeholder="Visita tecnica, reunion, traslado">
+                  </label>
+                  <label>
+                    <span>Destino</span>
+                    <input id="tripDestination" type="text" placeholder="Ciudad o sede">
+                  </label>
+                </div>
+
+                <div class="upload-row">
+                  <label class="file-field">
+                    <span>Foto o PDF</span>
+                    <input id="receiptFile" type="file" accept="image/*,application/pdf">
+                  </label>
+                  <div class="actions compact">
+                    <button id="btnProcessReceipt" class="primary">Subir y reconocer</button>
+                  </div>
+                </div>
+
+                <div id="currentFileHint" class="inline-note muted">Todavia no hay un archivo asociado.</div>
+                <div id="uploadMessage" class="message hidden"></div>
+              </section>
+
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow muted">Paso 2</p>
+                    <h3>Vista previa</h3>
+                  </div>
+                </div>
+                <div id="receiptPreviewContainer" class="preview-surface muted">
+                  Cargue una imagen o un PDF para revisar el comprobante.
+                </div>
+              </section>
+            </div>
+
+            <section class="panel top-gap">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow muted">Paso 3</p>
+                  <h3>Datos del comprobante</h3>
+                </div>
+              </div>
+
+              <div class="form-grid four-col">
+                <label><span>Fecha de gasto</span><input id="f_expenseDate" type="text" placeholder="dd/mm/aaaa"></label>
+                <label><span>Hora</span><input id="f_expenseTime" type="text" placeholder="hh:mm"></label>
+                <label><span>Comercio</span><input id="f_merchantName" type="text"></label>
+                <label><span>RUC comercio</span><input id="f_merchantRuc" type="text"></label>
+                <label><span>Direccion</span><input id="f_merchantAddress" type="text"></label>
+                <label><span>Telefono</span><input id="f_merchantPhone" type="text"></label>
+                <label><span>Numero de factura</span><input id="f_documentNumber" type="text"></label>
+                <label><span>Timbrado</span><input id="f_timbradoNumber" type="text"></label>
+                <label><span>Validez timbrado</span><input id="f_timbradoValidUntil" type="text"></label>
+                <label><span>Cliente</span><input id="f_clientName" type="text"></label>
+                <label><span>RUC cliente</span><input id="f_clientRuc" type="text"></label>
+                <label><span>Operador</span><input id="f_operatorName" type="text"></label>
+                <label>
+                  <span>Estado</span>
+                  <select id="f_reviewStatus">
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Aprobado">Aprobado</option>
+                    <option value="Observado">Observado</option>
+                  </select>
+                </label>
+                <label><span>Confianza OCR</span><input id="f_ocrConfidence" type="number" step="0.01" min="0" max="1"></label>
+              </div>
+            </section>
+
+            <section class="panel top-gap">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow muted">Paso 4</p>
+                  <h3>Montos e impuestos</h3>
+                </div>
+              </div>
+
+              <div class="form-grid four-col">
+                <label><span>Subtotal</span><input id="f_subtotal" type="number" min="0"></label>
+                <label><span>Descuento</span><input id="f_discount" type="number" min="0"></label>
+                <label><span>Total</span><input id="f_total" type="number" min="0"></label>
+                <label><span>Recibido</span><input id="f_received" type="number" min="0"></label>
+                <label><span>Vuelto</span><input id="f_changeAmount" type="number" min="0"></label>
+                <label><span>Exentas</span><input id="f_taxExempt" type="number" min="0"></label>
+                <label><span>Gravadas 5%</span><input id="f_tax5Base" type="number" min="0"></label>
+                <label><span>Gravadas 10%</span><input id="f_tax10Base" type="number" min="0"></label>
+                <label><span>IVA 5%</span><input id="f_iva5" type="number" min="0"></label>
+                <label><span>IVA 10%</span><input id="f_iva10" type="number" min="0"></label>
+                <label><span>Total IVA</span><input id="f_ivaTotal" type="number" min="0"></label>
+              </div>
+            </section>
+
+            <section class="panel top-gap">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow muted">Paso 5</p>
+                  <h3>Detalle y notas</h3>
+                </div>
+              </div>
+
+              <div class="form-grid single-col">
+                <label><span>Items detectados en JSON</span><textarea id="f_items" rows="6"></textarea></label>
+                <label><span>Texto OCR completo</span><textarea id="f_rawText" rows="10"></textarea></label>
+                <label><span>Notas</span><textarea id="f_notes" rows="4"></textarea></label>
+              </div>
+
+              <div class="actions end">
+                <button id="btnSaveExpense" class="primary">Guardar rendicion</button>
+              </div>
+            </section>
+          </section>
+
+          <section id="expensesView" class="view hidden">
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow muted">Seguimiento</p>
+                  <h3>Base de rendiciones</h3>
+                </div>
+              </div>
+
+              <div class="filter-grid">
+                <label>
+                  <span>Buscar</span>
+                  <input id="expenseSearch" type="search" placeholder="Colaborador, comercio, factura o destino">
+                </label>
+                <label>
+                  <span>Estado</span>
+                  <select id="expenseStatusFilter">
+                    <option value="">Todos</option>
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Aprobado">Aprobado</option>
+                    <option value="Observado">Observado</option>
+                  </select>
+                </label>
+                <div class="filter-actions">
+                  <button class="secondary" id="btnClearExpenseFilters">Limpiar filtros</button>
+                </div>
+              </div>
+
+              <div id="expensesSummary" class="summary-row"></div>
+              <div id="expensesTable" class="table-wrapper"></div>
+            </section>
+          </section>
+
+          <section id="usersView" class="view hidden">
+            <div class="split-grid">
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow muted">Administracion</p>
+                    <h3>Crear usuario</h3>
+                  </div>
+                </div>
+
+                <div class="form-grid two-col">
+                  <label><span>Usuario</span><input id="newUsername" type="text"></label>
+                  <label><span>Nombre completo</span><input id="newFullName" type="text"></label>
+                  <label><span>Email</span><input id="newEmail" type="email"></label>
+                  <label><span>Contrasena</span><input id="newPassword" type="text" value="123"></label>
+                  <label>
+                    <span>Rol</span>
+                    <select id="newRole">
+                      <option value="user">user</option>
+                      <option value="admin">admin</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div class="actions">
+                  <button id="btnCreateUser" class="primary">Guardar usuario</button>
+                </div>
+
+                <div id="userMessage" class="message hidden"></div>
+              </section>
+
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow muted">Accesos</p>
+                    <h3>Usuarios registrados</h3>
+                  </div>
+                </div>
+                <div id="usersTable" class="table-wrapper"></div>
+              </section>
+            </div>
+          </section>
+
+          <section id="helpView" class="view hidden">
+            <div class="split-grid">
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow muted">Captura</p>
+                    <h3>Metodologia de carga</h3>
+                  </div>
+                </div>
+                <div class="stack-list">
+                  <article class="flow-item">
+                    <span class="flow-index">A</span>
+                    <div>
+                      <strong>Encuadre completo</strong>
+                      <p>Evite sombras, cortes y reflejos sobre el ticket o la factura.</p>
+                    </div>
+                  </article>
+                  <article class="flow-item">
+                    <span class="flow-index">B</span>
+                    <div>
+                      <strong>Revision de campos clave</strong>
+                      <p>Fecha, comercio, RUC, numero de comprobante, total e IVA son los primeros controles.</p>
+                    </div>
+                  </article>
+                  <article class="flow-item">
+                    <span class="flow-index">C</span>
+                    <div>
+                      <strong>Observaciones utiles</strong>
+                      <p>Cuando algo no cierra, deje la nota en la rendicion y marque el estado correspondiente.</p>
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <section class="panel">
+                <div class="section-head">
+                  <div>
+                    <p class="eyebrow muted">Checklist</p>
+                    <h3>Antes de aprobar</h3>
+                  </div>
+                </div>
+                <ul class="checklist audit">
+                  <li>La fecha corresponde al viaje informado.</li>
+                  <li>El total y los impuestos coinciden con el comprobante.</li>
+                  <li>El archivo correcto quedo asociado a la rendicion.</li>
+                  <li>Las notas explican cualquier ajuste manual o duda pendiente.</li>
+                </ul>
+
+                <div class="callout">
+                  <strong>Base de datos</strong>
+                  <p>Los comprobantes quedan en Drive y el registro estructurado en Sheets. La app esta pensada para revisar primero y aprobar despues.</p>
+                </div>
+              </section>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <?!= include('Scripts'); ?>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+# Repositorio
+/**
+
+# Codigo que si se sube
+!gas/**
+
+# Nunca subir autenticacion o dependencias locales
+.git/**
+.gitignore
+.claspignore
+node_modules/**
+github/**
+docs/**
+plantillas/**
+README.md
+desktop.ini
+gas/desktop.ini

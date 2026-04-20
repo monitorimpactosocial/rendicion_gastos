@@ -1,0 +1,814 @@
+<script>
+  const state = {
+    token: localStorage.getItem('rg_token') || '',
+    user: null,
+    expenses: [],
+    users: [],
+    extracted: null,
+    currentFile: { fileId: '', fileUrl: '' },
+    editingExpenseId: '',
+    reviewStatusOptions: ['Pendiente', 'Aprobado', 'Observado'],
+    filters: {
+      search: '',
+      reviewStatus: ''
+    }
+  };
+
+  const views = {
+    dashboard: document.getElementById('dashboardView'),
+    'new-expense': document.getElementById('newExpenseView'),
+    expenses: document.getElementById('expensesView'),
+    users: document.getElementById('usersView'),
+    help: document.getElementById('helpView')
+  };
+
+  const viewMeta = {
+    dashboard: ['Operacion', 'Resumen', 'Panel consolidado de rendiciones y estado operativo.'],
+    'new-expense': ['Carga', 'Nueva rendicion', 'Suba el comprobante, revise el OCR y guarde el registro.'],
+    expenses: ['Seguimiento', 'Rendiciones', 'Busque, filtre y reabra cualquier rendicion para corregirla.'],
+    users: ['Administracion', 'Usuarios', 'Alta basica de accesos para el circuito interno.'],
+    help: ['Soporte', 'Metodologia', 'Buenas practicas de captura, revision y aprobacion.']
+  };
+
+  const expenseFieldIds = [
+    'employeeName',
+    'tripReason',
+    'tripDestination',
+    'f_expenseDate',
+    'f_expenseTime',
+    'f_merchantName',
+    'f_merchantRuc',
+    'f_merchantAddress',
+    'f_merchantPhone',
+    'f_documentNumber',
+    'f_timbradoNumber',
+    'f_timbradoValidUntil',
+    'f_clientName',
+    'f_clientRuc',
+    'f_operatorName',
+    'f_subtotal',
+    'f_discount',
+    'f_total',
+    'f_received',
+    'f_changeAmount',
+    'f_taxExempt',
+    'f_tax5Base',
+    'f_tax10Base',
+    'f_iva5',
+    'f_iva10',
+    'f_ivaTotal',
+    'f_ocrConfidence',
+    'f_reviewStatus',
+    'f_items',
+    'f_rawText',
+    'f_notes'
+  ];
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function showMessage(element, text, kind) {
+    element.textContent = text;
+    element.className = 'message ' + (kind || 'success');
+    element.classList.remove('hidden');
+  }
+
+  function hideMessage(element) {
+    element.classList.add('hidden');
+  }
+
+  function setLoading(button, loading, loadingText) {
+    if (!button) return;
+    if (loading) {
+      button.dataset.originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = loadingText || 'Procesando...';
+      return;
+    }
+    button.disabled = false;
+    button.textContent = button.dataset.originalText || button.textContent;
+  }
+
+  function currencyGs(value) {
+    const amount = Number(value || 0);
+    return 'Gs. ' + amount.toLocaleString('es-PY');
+  }
+
+  function statusBadge(status) {
+    const text = String(status || 'Pendiente');
+    const cssClass = text === 'Aprobado' ? 'approved' : (text === 'Observado' ? 'observed' : 'pending');
+    return '<span class="badge ' + cssClass + '">' + escapeHtml(text) + '</span>';
+  }
+
+  function switchView(key) {
+    Object.keys(views).forEach(function(viewKey) {
+      views[viewKey].classList.add('hidden');
+    });
+    views[key].classList.remove('hidden');
+
+    document.querySelectorAll('.menu-item').forEach(function(button) {
+      button.classList.toggle('active', button.dataset.view === key);
+    });
+
+    const meta = viewMeta[key] || viewMeta.dashboard;
+    document.getElementById('viewEyebrow').textContent = meta[0];
+    document.getElementById('viewTitle').textContent = meta[1];
+    document.getElementById('viewSubtitle').textContent = meta[2];
+  }
+
+  function setWorkspaceVisible(isVisible) {
+    document.getElementById('loginView').classList.toggle('hidden', isVisible);
+    document.getElementById('workspace').classList.toggle('hidden', !isVisible);
+  }
+
+  function renderReviewStatusOptions() {
+    const select = document.getElementById('f_reviewStatus');
+    const currentValue = select.value || 'Pendiente';
+    select.innerHTML = state.reviewStatusOptions.map(function(status) {
+      return '<option value="' + escapeHtml(status) + '">' + escapeHtml(status) + '</option>';
+    }).join('');
+    select.value = state.reviewStatusOptions.indexOf(currentValue) >= 0 ? currentValue : 'Pendiente';
+
+    const filterSelect = document.getElementById('expenseStatusFilter');
+    const currentFilter = filterSelect.value || '';
+    filterSelect.innerHTML = '<option value="">Todos</option>' + state.reviewStatusOptions.map(function(status) {
+      return '<option value="' + escapeHtml(status) + '">' + escapeHtml(status) + '</option>';
+    }).join('');
+    filterSelect.value = state.reviewStatusOptions.indexOf(currentFilter) >= 0 ? currentFilter : '';
+  }
+
+  function renderSession() {
+    const sessionBox = document.getElementById('sessionUserBox');
+    if (!state.user) {
+      sessionBox.textContent = '';
+      return;
+    }
+
+    sessionBox.innerHTML =
+      '<strong>' + escapeHtml(state.user.fullName || state.user.username) + '</strong>' +
+      '<div>' + escapeHtml(state.user.role) + '</div>' +
+      (state.user.email ? '<div>' + escapeHtml(state.user.email) + '</div>' : '');
+
+    document.querySelectorAll('.admin-only').forEach(function(element) {
+      element.classList.toggle('hidden', state.user.role !== 'admin');
+    });
+  }
+
+  function renderDashboard(stats) {
+    document.getElementById('statExpenseCount').textContent = stats.expenseCount || 0;
+    document.getElementById('statTotalAmount').textContent = currencyGs(stats.totalAmount || 0);
+    document.getElementById('statPendingCount').textContent = stats.pendingCount || 0;
+    document.getElementById('statApprovedCount').textContent = stats.approvedCount || 0;
+
+    const latest = state.expenses.slice(0, 6);
+    document.getElementById('latestExpenses').innerHTML = buildExpensesTable(latest, {
+      emptyMessage: 'Todavia no hay rendiciones registradas.'
+    });
+  }
+
+  function getFilteredExpenses() {
+    const search = String(state.filters.search || '').trim().toLowerCase();
+    const reviewStatus = String(state.filters.reviewStatus || '').trim();
+
+    return state.expenses.filter(function(expense) {
+      if (reviewStatus && String(expense.review_status || '') !== reviewStatus) {
+        return false;
+      }
+
+      if (!search) return true;
+
+      const haystack = [
+        expense.employee_name,
+        expense.trip_reason,
+        expense.trip_destination,
+        expense.merchant_name,
+        expense.document_number,
+        expense.created_by_username
+      ].join(' ').toLowerCase();
+
+      return haystack.indexOf(search) >= 0;
+    });
+  }
+
+  function renderExpensesSummary(rows) {
+    const totals = rows.reduce(function(acc, row) {
+      acc.amount += Number(row.total || 0);
+      acc.pending += row.review_status === 'Pendiente' ? 1 : 0;
+      acc.approved += row.review_status === 'Aprobado' ? 1 : 0;
+      acc.observed += row.review_status === 'Observado' ? 1 : 0;
+      return acc;
+    }, {
+      amount: 0,
+      pending: 0,
+      approved: 0,
+      observed: 0
+    });
+
+    document.getElementById('expensesSummary').innerHTML = [
+      '<span class="summary-chip">Mostrando ' + rows.length + ' registro(s)</span>',
+      '<span class="summary-chip">Monto filtrado: ' + currencyGs(totals.amount) + '</span>',
+      '<span class="summary-chip">Pendientes: ' + totals.pending + '</span>',
+      '<span class="summary-chip">Aprobadas: ' + totals.approved + '</span>',
+      '<span class="summary-chip">Observadas: ' + totals.observed + '</span>'
+    ].join('');
+  }
+
+  function renderExpensesView() {
+    const rows = getFilteredExpenses();
+    renderExpensesSummary(rows);
+    document.getElementById('expensesTable').innerHTML = buildExpensesTable(rows, {
+      emptyMessage: 'No hay rendiciones que coincidan con los filtros.'
+    });
+  }
+
+  function buildExpensesTable(rows, options) {
+    if (!rows || !rows.length) {
+      return '<div class="empty-state">' + escapeHtml((options && options.emptyMessage) || 'No hay registros.') + '</div>';
+    }
+
+    return '<table>' +
+      '<thead><tr>' +
+      '<th>Registro</th>' +
+      '<th>Rendicion</th>' +
+      '<th>Comprobante</th>' +
+      '<th>Total</th>' +
+      '<th>Estado</th>' +
+      '<th>Archivo</th>' +
+      '<th>Accion</th>' +
+      '</tr></thead>' +
+      '<tbody>' +
+      rows.map(function(row) {
+        return '<tr>' +
+          '<td>' +
+            '<div class="table-main">' +
+              '<span class="row-title">' + escapeHtml(row.created_at || '-') + '</span>' +
+              '<span class="row-subtitle">' + escapeHtml(row.created_by_username || '-') + '</span>' +
+            '</div>' +
+          '</td>' +
+          '<td>' +
+            '<div class="table-main">' +
+              '<span class="row-title">' + escapeHtml(row.employee_name || 'Sin colaborador') + '</span>' +
+              '<span class="row-subtitle">' + escapeHtml((row.trip_destination || 'Sin destino') + ' - ' + (row.expense_date || 'Sin fecha')) + '</span>' +
+            '</div>' +
+          '</td>' +
+          '<td>' +
+            '<div class="table-main">' +
+              '<span class="row-title">' + escapeHtml(row.merchant_name || 'Sin comercio') + '</span>' +
+              '<span class="row-subtitle">' + escapeHtml(row.document_number || 'Sin numero de factura') + '</span>' +
+            '</div>' +
+          '</td>' +
+          '<td>' + escapeHtml(currencyGs(row.total || 0)) + '</td>' +
+          '<td>' + statusBadge(row.review_status) + '</td>' +
+          '<td>' + (row.file_url ? '<a href="' + escapeHtml(row.file_url) + '" target="_blank" rel="noopener noreferrer">Abrir</a>' : '-') + '</td>' +
+          '<td><button class="table-action" data-expense-id="' + escapeHtml(row.expense_id) + '">Editar</button></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody>' +
+      '</table>';
+  }
+
+  function buildUsersTable(rows) {
+    if (!rows || !rows.length) {
+      return '<div class="empty-state">No hay usuarios registrados.</div>';
+    }
+
+    return '<table>' +
+      '<thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Email</th><th>Activo</th><th>Ultimo acceso</th></tr></thead>' +
+      '<tbody>' +
+      rows.map(function(row) {
+        return '<tr>' +
+          '<td>' + escapeHtml(row.username) + '</td>' +
+          '<td>' + escapeHtml(row.fullName || '') + '</td>' +
+          '<td>' + escapeHtml(row.role || '') + '</td>' +
+          '<td>' + escapeHtml(row.email || '') + '</td>' +
+          '<td>' + (row.active ? 'Si' : 'No') + '</td>' +
+          '<td>' + escapeHtml(row.lastLoginAt || '-') + '</td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody>' +
+      '</table>';
+  }
+
+  function renderUsersView() {
+    document.getElementById('usersTable').innerHTML = buildUsersTable(state.users);
+  }
+
+  function mapRecordToFormData(record) {
+    return {
+      employeeName: record.employee_name || '',
+      tripReason: record.trip_reason || '',
+      tripDestination: record.trip_destination || '',
+      expenseDate: record.expense_date || '',
+      expenseTime: record.expense_time || '',
+      merchantName: record.merchant_name || '',
+      merchantRuc: record.merchant_ruc || '',
+      merchantAddress: record.merchant_address || '',
+      merchantPhone: record.merchant_phone || '',
+      documentNumber: record.document_number || '',
+      timbradoNumber: record.timbrado_number || '',
+      timbradoValidUntil: record.timbrado_valid_until || '',
+      clientName: record.client_name || '',
+      clientRuc: record.client_ruc || '',
+      operatorName: record.operator_name || '',
+      subtotal: record.subtotal || 0,
+      discount: record.discount || 0,
+      total: record.total || 0,
+      received: record.received || 0,
+      changeAmount: record.change_amount || 0,
+      taxExempt: record.tax_exempt || 0,
+      tax5Base: record.tax_5_base || 0,
+      tax10Base: record.tax_10_base || 0,
+      iva5: record.iva_5 || 0,
+      iva10: record.iva_10 || 0,
+      ivaTotal: record.iva_total || 0,
+      ocrConfidence: record.ocr_confidence || 0,
+      reviewStatus: record.review_status || 'Pendiente',
+      items: record.items || [],
+      rawText: record.raw_text || '',
+      notes: record.notes || ''
+    };
+  }
+
+  function populateForm(data) {
+    const mapped = {
+      employeeName: data.employeeName,
+      tripReason: data.tripReason,
+      tripDestination: data.tripDestination,
+      f_expenseDate: data.expenseDate,
+      f_expenseTime: data.expenseTime,
+      f_merchantName: data.merchantName,
+      f_merchantRuc: data.merchantRuc,
+      f_merchantAddress: data.merchantAddress,
+      f_merchantPhone: data.merchantPhone,
+      f_documentNumber: data.documentNumber,
+      f_timbradoNumber: data.timbradoNumber,
+      f_timbradoValidUntil: data.timbradoValidUntil,
+      f_clientName: data.clientName,
+      f_clientRuc: data.clientRuc,
+      f_operatorName: data.operatorName,
+      f_subtotal: data.subtotal,
+      f_discount: data.discount,
+      f_total: data.total,
+      f_received: data.received,
+      f_changeAmount: data.changeAmount,
+      f_taxExempt: data.taxExempt,
+      f_tax5Base: data.tax5Base,
+      f_tax10Base: data.tax10Base,
+      f_iva5: data.iva5,
+      f_iva10: data.iva10,
+      f_ivaTotal: data.ivaTotal,
+      f_ocrConfidence: data.ocrConfidence,
+      f_reviewStatus: data.reviewStatus || 'Pendiente',
+      f_items: JSON.stringify(data.items || [], null, 2),
+      f_rawText: data.rawText || '',
+      f_notes: data.notes || ''
+    };
+
+    Object.keys(mapped).forEach(function(id) {
+      const element = document.getElementById(id);
+      if (element) {
+        element.value = mapped[id] ?? '';
+      }
+    });
+  }
+
+  function clearExpenseFormFields() {
+    expenseFieldIds.forEach(function(id) {
+      const element = document.getElementById(id);
+      if (!element) return;
+      if (element.tagName === 'SELECT') {
+        element.value = element.id === 'f_reviewStatus' ? 'Pendiente' : '';
+        return;
+      }
+      element.value = '';
+    });
+    document.getElementById('receiptFile').value = '';
+    document.getElementById('receiptPreviewContainer').innerHTML = 'Cargue una imagen o un PDF para revisar el comprobante.';
+    document.getElementById('receiptPreviewContainer').classList.add('muted');
+  }
+
+  function renderFileHint() {
+    const hint = document.getElementById('currentFileHint');
+    const fileInput = document.getElementById('receiptFile');
+    const localFile = fileInput.files && fileInput.files[0];
+
+    if (state.currentFile.fileUrl) {
+      hint.innerHTML = 'Archivo asociado: <a href="' + escapeHtml(state.currentFile.fileUrl) + '" target="_blank" rel="noopener noreferrer">abrir comprobante</a>.';
+      return;
+    }
+
+    if (localFile) {
+      hint.textContent = 'Archivo listo para procesar: ' + localFile.name;
+      return;
+    }
+
+    hint.textContent = 'Todavia no hay un archivo asociado.';
+  }
+
+  function renderEditingState() {
+    const banner = document.getElementById('editingBanner');
+    const saveButton = document.getElementById('btnSaveExpense');
+
+    if (!state.editingExpenseId) {
+      banner.classList.add('hidden');
+      saveButton.textContent = 'Guardar rendicion';
+      renderFileHint();
+      return;
+    }
+
+    const record = state.expenses.find(function(item) {
+      return item.expense_id === state.editingExpenseId;
+    });
+
+    document.getElementById('editingExpenseLabel').textContent =
+      (record ? (record.employee_name || 'Rendicion') : 'Rendicion') + ' - ' + state.editingExpenseId;
+    document.getElementById('editingExpenseMeta').textContent = record
+      ? 'Estado actual: ' + (record.review_status || 'Pendiente') + '. Puede corregir datos y guardar de nuevo.'
+      : 'Puede actualizar campos, estado y notas.';
+
+    banner.classList.remove('hidden');
+    saveButton.textContent = 'Actualizar rendicion';
+    renderFileHint();
+  }
+
+  function resetExpenseForm() {
+    state.extracted = null;
+    state.currentFile = { fileId: '', fileUrl: '' };
+    state.editingExpenseId = '';
+    clearExpenseFormFields();
+    hideMessage(document.getElementById('uploadMessage'));
+    renderEditingState();
+  }
+
+  function renderPreview(file) {
+    const container = document.getElementById('receiptPreviewContainer');
+    container.classList.remove('muted');
+
+    if (!file) {
+      container.classList.add('muted');
+      container.textContent = 'Cargue una imagen o un PDF para revisar el comprobante.';
+      return;
+    }
+
+    if (file.type === 'application/pdf') {
+      const url = URL.createObjectURL(file);
+      container.innerHTML = '<iframe src="' + escapeHtml(url) + '"></iframe>';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function() {
+      container.innerHTML = '<img src="' + escapeHtml(reader.result) + '" alt="Comprobante cargado">';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function renderStoredPreview(url) {
+    const container = document.getElementById('receiptPreviewContainer');
+    container.classList.remove('muted');
+    if (!url) {
+      container.classList.add('muted');
+      container.textContent = 'No hay archivo asociado a esta rendicion.';
+      return;
+    }
+
+    container.innerHTML =
+      '<div>' +
+        '<p>El archivo ya esta guardado en Drive.</p>' +
+        '<a class="preview-link" href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">Abrir comprobante</a>' +
+      '</div>';
+  }
+
+  function beginEditExpense(expenseId) {
+    const record = state.expenses.find(function(item) {
+      return item.expense_id === expenseId;
+    });
+
+    if (!record) {
+      showMessage(document.getElementById('uploadMessage'), 'No se encontro la rendicion seleccionada.', 'error');
+      return;
+    }
+
+    state.editingExpenseId = record.expense_id;
+    state.currentFile = {
+      fileId: record.file_id || '',
+      fileUrl: record.file_url || ''
+    };
+    state.extracted = null;
+
+    clearExpenseFormFields();
+    populateForm(mapRecordToFormData(record));
+    renderStoredPreview(record.file_url);
+    renderEditingState();
+    switchView('new-expense');
+  }
+
+  function parseItemsField() {
+    const raw = document.getElementById('f_items').value.trim();
+    if (!raw) return [];
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      throw new Error('El campo de items debe contener un JSON valido.');
+    }
+
+    if (!Array.isArray(parsed)) {
+      throw new Error('El campo de items debe ser un arreglo JSON.');
+    }
+
+    return parsed;
+  }
+
+  function collectExpensePayload() {
+    return {
+      expenseId: state.editingExpenseId,
+      employeeName: document.getElementById('employeeName').value,
+      tripReason: document.getElementById('tripReason').value,
+      tripDestination: document.getElementById('tripDestination').value,
+      expenseDate: document.getElementById('f_expenseDate').value,
+      expenseTime: document.getElementById('f_expenseTime').value,
+      merchantName: document.getElementById('f_merchantName').value,
+      merchantRuc: document.getElementById('f_merchantRuc').value,
+      merchantAddress: document.getElementById('f_merchantAddress').value,
+      merchantPhone: document.getElementById('f_merchantPhone').value,
+      documentNumber: document.getElementById('f_documentNumber').value,
+      timbradoNumber: document.getElementById('f_timbradoNumber').value,
+      timbradoValidUntil: document.getElementById('f_timbradoValidUntil').value,
+      clientName: document.getElementById('f_clientName').value,
+      clientRuc: document.getElementById('f_clientRuc').value,
+      operatorName: document.getElementById('f_operatorName').value,
+      subtotal: Number(document.getElementById('f_subtotal').value || 0),
+      discount: Number(document.getElementById('f_discount').value || 0),
+      total: Number(document.getElementById('f_total').value || 0),
+      received: Number(document.getElementById('f_received').value || 0),
+      changeAmount: Number(document.getElementById('f_changeAmount').value || 0),
+      taxExempt: Number(document.getElementById('f_taxExempt').value || 0),
+      tax5Base: Number(document.getElementById('f_tax5Base').value || 0),
+      tax10Base: Number(document.getElementById('f_tax10Base').value || 0),
+      iva5: Number(document.getElementById('f_iva5').value || 0),
+      iva10: Number(document.getElementById('f_iva10').value || 0),
+      ivaTotal: Number(document.getElementById('f_ivaTotal').value || 0),
+      ocrConfidence: Number(document.getElementById('f_ocrConfidence').value || 0),
+      reviewStatus: document.getElementById('f_reviewStatus').value,
+      items: parseItemsField(),
+      rawText: document.getElementById('f_rawText').value,
+      notes: document.getElementById('f_notes').value,
+      fileId: state.currentFile.fileId || '',
+      fileUrl: state.currentFile.fileUrl || ''
+    };
+  }
+
+  function fileToBase64(file) {
+    return new Promise(function(resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function() {
+        resolve(String(reader.result).split(',')[1]);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function callServer(method, args) {
+    return new Promise(function(resolve, reject) {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function(error) {
+          reject(new Error(error && error.message ? error.message : String(error)));
+        })[method](...(args || []));
+    });
+  }
+
+  async function login() {
+    const button = document.getElementById('btnLogin');
+    const errorBox = document.getElementById('loginError');
+    hideMessage(errorBox);
+    setLoading(button, true, 'Ingresando...');
+
+    try {
+      const response = await callServer('apiLogin', [
+        document.getElementById('loginUsername').value,
+        document.getElementById('loginPassword').value
+      ]);
+
+      state.token = response.token;
+      localStorage.setItem('rg_token', response.token);
+      setWorkspaceVisible(true);
+      await bootstrap();
+    } catch (error) {
+      showMessage(errorBox, error.message || String(error), 'error');
+    } finally {
+      setLoading(button, false);
+    }
+  }
+
+  async function bootstrap() {
+    const response = await callServer('apiGetBootstrap', [state.token]);
+    state.user = response.user;
+    state.expenses = response.expenses || [];
+    state.users = response.users || [];
+    state.reviewStatusOptions = response.reviewStatusOptions || state.reviewStatusOptions;
+
+    renderReviewStatusOptions();
+    renderSession();
+    renderDashboard(response.stats || {});
+    renderUsersView();
+    renderExpensesView();
+    renderEditingState();
+    switchView('dashboard');
+  }
+
+  async function processReceipt() {
+    const button = document.getElementById('btnProcessReceipt');
+    const messageBox = document.getElementById('uploadMessage');
+    hideMessage(messageBox);
+
+    const file = document.getElementById('receiptFile').files[0];
+    if (!file) {
+      showMessage(messageBox, 'Seleccione un archivo antes de procesar.', 'warn');
+      return;
+    }
+
+    renderPreview(file);
+    renderFileHint();
+    setLoading(button, true, 'Reconociendo...');
+
+    try {
+      const base64 = await fileToBase64(file);
+      const response = await callServer('apiUploadAndRecognize', [state.token, {
+        fileName: file.name,
+        mimeType: file.type || 'image/jpeg',
+        base64: base64,
+        employeeName: document.getElementById('employeeName').value,
+        tripReason: document.getElementById('tripReason').value,
+        tripDestination: document.getElementById('tripDestination').value
+      }]);
+
+      state.extracted = response;
+      state.currentFile = {
+        fileId: response.fileId || '',
+        fileUrl: response.fileUrl || ''
+      };
+
+      populateForm(response.extracted);
+      renderEditingState();
+      showMessage(messageBox, 'Comprobante procesado. Revise los datos antes de guardar.', 'success');
+    } catch (error) {
+      showMessage(messageBox, error.message || String(error), 'error');
+    } finally {
+      setLoading(button, false);
+    }
+  }
+
+  async function saveExpense() {
+    const button = document.getElementById('btnSaveExpense');
+    const messageBox = document.getElementById('uploadMessage');
+    hideMessage(messageBox);
+    setLoading(button, true, state.editingExpenseId ? 'Actualizando...' : 'Guardando...');
+
+    try {
+      const payload = collectExpensePayload();
+      await callServer('apiSaveExpense', [state.token, payload]);
+      showMessage(messageBox, 'Rendicion guardada correctamente.', 'success');
+      await bootstrap();
+      resetExpenseForm();
+      switchView('expenses');
+    } catch (error) {
+      showMessage(messageBox, error.message || String(error), 'error');
+    } finally {
+      setLoading(button, false);
+    }
+  }
+
+  async function createUser() {
+    const button = document.getElementById('btnCreateUser');
+    const messageBox = document.getElementById('userMessage');
+    hideMessage(messageBox);
+    setLoading(button, true, 'Guardando...');
+
+    try {
+      await callServer('apiCreateUser', [state.token, {
+        username: document.getElementById('newUsername').value,
+        fullName: document.getElementById('newFullName').value,
+        email: document.getElementById('newEmail').value,
+        password: document.getElementById('newPassword').value,
+        role: document.getElementById('newRole').value
+      }]);
+
+      showMessage(messageBox, 'Usuario creado correctamente.', 'success');
+      document.getElementById('newUsername').value = '';
+      document.getElementById('newFullName').value = '';
+      document.getElementById('newEmail').value = '';
+      document.getElementById('newPassword').value = '123';
+      document.getElementById('newRole').value = 'user';
+      await bootstrap();
+      switchView('users');
+    } catch (error) {
+      showMessage(messageBox, error.message || String(error), 'error');
+    } finally {
+      setLoading(button, false);
+    }
+  }
+
+  async function logout() {
+    try {
+      await callServer('apiLogout', [state.token]);
+    } catch (error) {}
+
+    localStorage.removeItem('rg_token');
+    state.token = '';
+    state.user = null;
+    setWorkspaceVisible(false);
+    resetExpenseForm();
+  }
+
+  function handleExpenseActionClick(event) {
+    const button = event.target.closest('[data-expense-id]');
+    if (!button) return;
+    beginEditExpense(button.dataset.expenseId);
+  }
+
+  function initEventListeners() {
+    document.getElementById('btnLogin').addEventListener('click', login);
+    document.getElementById('btnLogout').addEventListener('click', logout);
+    document.getElementById('btnRefresh').addEventListener('click', bootstrap);
+    document.getElementById('btnProcessReceipt').addEventListener('click', processReceipt);
+    document.getElementById('btnSaveExpense').addEventListener('click', saveExpense);
+    document.getElementById('btnCreateUser').addEventListener('click', createUser);
+    document.getElementById('btnStartNewExpense').addEventListener('click', function() {
+      resetExpenseForm();
+      switchView('new-expense');
+    });
+    document.getElementById('btnCreateFreshExpense').addEventListener('click', function() {
+      resetExpenseForm();
+    });
+    document.getElementById('btnOpenExpenses').addEventListener('click', function() {
+      switchView('expenses');
+    });
+
+    document.getElementById('receiptFile').addEventListener('change', function(event) {
+      renderPreview(event.target.files[0]);
+      renderFileHint();
+    });
+
+    document.getElementById('expenseSearch').addEventListener('input', function(event) {
+      state.filters.search = event.target.value;
+      renderExpensesView();
+    });
+
+    document.getElementById('expenseStatusFilter').addEventListener('change', function(event) {
+      state.filters.reviewStatus = event.target.value;
+      renderExpensesView();
+    });
+
+    document.getElementById('btnClearExpenseFilters').addEventListener('click', function() {
+      state.filters.search = '';
+      state.filters.reviewStatus = '';
+      document.getElementById('expenseSearch').value = '';
+      document.getElementById('expenseStatusFilter').value = '';
+      renderExpensesView();
+    });
+
+    document.getElementById('latestExpenses').addEventListener('click', handleExpenseActionClick);
+    document.getElementById('expensesTable').addEventListener('click', handleExpenseActionClick);
+
+    document.querySelectorAll('.menu-item').forEach(function(button) {
+      button.addEventListener('click', function() {
+        if (button.classList.contains('hidden')) return;
+        switchView(button.dataset.view);
+      });
+    });
+
+    ['loginUsername', 'loginPassword'].forEach(function(id) {
+      document.getElementById(id).addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') login();
+      });
+    });
+  }
+
+  window.addEventListener('load', async function() {
+    initEventListeners();
+    renderReviewStatusOptions();
+    renderFileHint();
+    setWorkspaceVisible(false);
+
+    if (!state.token) return;
+
+    try {
+      setWorkspaceVisible(true);
+      await bootstrap();
+    } catch (error) {
+      localStorage.removeItem('rg_token');
+      state.token = '';
+      setWorkspaceVisible(false);
+    }
+  });
+</script>

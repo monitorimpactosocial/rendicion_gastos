@@ -1,0 +1,16 @@
+{
+  "name": "rendicion-gastos-paracel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Repositorio para desplegar la app de rendición de gastos en Google Apps Script usando clasp.",
+  "scripts": {
+    "login": "clasp login",
+    "push": "clasp push",
+    "pull": "clasp pull",
+    "open": "clasp open",
+    "deploy": "clasp deploy"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  }
+}
