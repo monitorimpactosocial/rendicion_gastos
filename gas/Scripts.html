@@ -378,8 +378,10 @@
     });
   }
 
-  function clearExpenseFormFields() {
+  function clearExpenseFormFields(clearAll) {
+    const keepFields = ['employeeName', 'tripReason', 'tripDestination'];
     expenseFieldIds.forEach(function(id) {
+      if (!clearAll && keepFields.indexOf(id) >= 0) return;
       const element = document.getElementById(id);
       if (!element) return;
       if (element.tagName === 'SELECT') {
@@ -437,11 +439,11 @@
     renderFileHint();
   }
 
-  function resetExpenseForm() {
+  function resetExpenseForm(clearAll) {
     state.extracted = null;
     state.currentFile = { fileId: '', fileUrl: '' };
     state.editingExpenseId = '';
-    clearExpenseFormFields();
+    clearExpenseFormFields(clearAll);
     hideMessage(document.getElementById('uploadMessage'));
     renderEditingState();
   }
@@ -641,7 +643,6 @@
       return;
     }
 
-    renderPreview(file);
     renderFileHint();
     setLoading(button, true, 'Reconociendo...');
 
@@ -680,11 +681,18 @@
 
     try {
       const payload = collectExpensePayload();
+      const wasEditing = !!state.editingExpenseId;
       await callServer('apiSaveExpense', [state.token, payload]);
-      showMessage(messageBox, 'Rendicion guardada correctamente.', 'success');
+      
       await bootstrap();
-      resetExpenseForm();
-      switchView('expenses');
+      resetExpenseForm(false);
+      
+      if (wasEditing) {
+        switchView('expenses');
+      } else {
+        showMessage(document.getElementById('uploadMessage'), 'Guardado. Puede cargar la siguiente factura de este viaje.', 'success');
+        window.scrollTo(0, 0);
+      }
     } catch (error) {
       showMessage(messageBox, error.message || String(error), 'error');
     } finally {
@@ -731,7 +739,7 @@
     state.token = '';
     state.user = null;
     setWorkspaceVisible(false);
-    resetExpenseForm();
+    resetExpenseForm(true);
   }
 
   function handleExpenseActionClick(event) {
@@ -748,11 +756,11 @@
     document.getElementById('btnSaveExpense').addEventListener('click', saveExpense);
     document.getElementById('btnCreateUser').addEventListener('click', createUser);
     document.getElementById('btnStartNewExpense').addEventListener('click', function() {
-      resetExpenseForm();
+      resetExpenseForm(false);
       switchView('new-expense');
     });
     document.getElementById('btnCreateFreshExpense').addEventListener('click', function() {
-      resetExpenseForm();
+      resetExpenseForm(true);
     });
     document.getElementById('btnOpenExpenses').addEventListener('click', function() {
       switchView('expenses');
